@@ -6,109 +6,121 @@
  * =========================================================================
  */
 
-#include <Arduino.h>
-#include <BluetoothSerial.h>
+#include "BluetoothSerial.h"
+
+// Check if Bluetooth is properly enabled in your ESP32 board settings
+#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
+#endif
 
 BluetoothSerial SerialBT;
 
-// Pin Definitions
-const int MOTOR_LEFT_F = 18;  // IN1
-const int MOTOR_LEFT_B = 19;  // IN2
-const int MOTOR_RIGHT_F = 22; // IN3
-const int MOTOR_RIGHT_B = 23; // IN4
-const int LED_PIN = 2;        // On-board LED
+// --- L298N Pin Definitions ---
+// Left Motors
+const int ENA = 14; // Left Speed (PWM)
+const int IN1 = 26; // Left Forward
+const int IN2 = 27; // Left Reverse
 
-// PWM Configuration (ESP32 LEDC)
-const int PWM_FREQ = 1000;
-const int PWM_RES = 8;        // 8-bit resolution (0-255)
-const int MOTOR_SPEED = 200;  // Default drive speed (0 - 255)
+// Right Motors
+const int ENB = 15; // Right Speed (PWM)
+const int IN3 = 32; // Right Forward
+const int IN4 = 33; // Right Reverse
+
+int motorSpeed = 255; // Default max speed (0-255)
 
 void setup() {
   Serial.begin(115200);
 
-  // Initialize Motor Pins as Outputs
-  pinMode(MOTOR_LEFT_F, OUTPUT);
-  pinMode(MOTOR_LEFT_B, OUTPUT);
-  pinMode(MOTOR_RIGHT_F, OUTPUT);
-  pinMode(MOTOR_RIGHT_B, OUTPUT);
-  pinMode(LED_PIN, OUTPUT);
+  // Configure pins as outputs
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
 
+  // Ensure motors are stopped on boot
   stopMotors();
 
-  // Initialize Bluetooth with Device Name
-  SerialBT.begin("Robo_ESP32_Rover");
-  Serial.println("Bluetooth started! Pair with 'Robo_ESP32_Rover'");
+  // Initialize Bluetooth
+  SerialBT.begin("Robo_X"); 
+  Serial.println("Bluetooth Started! Ready to pair...");
 }
 
 void loop() {
   if (SerialBT.available()) {
     char command = SerialBT.read();
-    Serial.print("Received: ");
-    Serial.println(command);
-
+    
+    // Execute movement based on the received character
     switch (command) {
-      case 'F':
-      case 'f':
-        moveForward();
-        break;
-      case 'B':
-      case 'b':
-        moveBackward();
-        break;
-      case 'L':
-      case 'l':
-        turnLeft();
-        break;
-      case 'R':
-      case 'r':
-        turnRight();
-        break;
-      case 'S':
-      case 's':
-      default:
-        stopMotors();
-        break;
+      case 'F': moveForward(motorSpeed); break;
+      case 'B': moveBackward(motorSpeed); break;
+      case 'L': turnLeft(motorSpeed); break;
+      case 'R': turnRight(motorSpeed); break;
+      case 'S': stopMotors(); break;
+      
+      // Map numbers 0-9 from the app to PWM speeds (0 to 255)
+      case '0': motorSpeed = 0; break;
+      case '1': motorSpeed = 28; break;
+      case '2': motorSpeed = 56; break;
+      case '3': motorSpeed = 85; break;
+      case '4': motorSpeed = 113; break;
+      case '5': motorSpeed = 141; break;
+      case '6': motorSpeed = 170; break;
+      case '7': motorSpeed = 198; break;
+      case '8': motorSpeed = 226; break;
+      case '9': motorSpeed = 255; break;
     }
   }
-  delay(20);
 }
 
-void moveForward() {
-  digitalWrite(MOTOR_LEFT_F, HIGH);
-  digitalWrite(MOTOR_LEFT_B, LOW);
-  digitalWrite(MOTOR_RIGHT_F, HIGH);
-  digitalWrite(MOTOR_RIGHT_B, LOW);
-  digitalWrite(LED_PIN, HIGH);
+// ==========================================
+//           MOVEMENT FUNCTIONS
+// ==========================================
+
+void moveForward(int speed) {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENA, speed);
+  analogWrite(ENB, speed);
 }
 
-void moveBackward() {
-  digitalWrite(MOTOR_LEFT_F, LOW);
-  digitalWrite(MOTOR_LEFT_B, HIGH);
-  digitalWrite(MOTOR_RIGHT_F, LOW);
-  digitalWrite(MOTOR_RIGHT_B, HIGH);
-  digitalWrite(LED_PIN, HIGH);
+void moveBackward(int speed) {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  analogWrite(ENA, speed);
+  analogWrite(ENB, speed);
 }
 
-void turnLeft() {
-  digitalWrite(MOTOR_LEFT_F, LOW);
-  digitalWrite(MOTOR_LEFT_B, HIGH);
-  digitalWrite(MOTOR_RIGHT_F, HIGH);
-  digitalWrite(MOTOR_RIGHT_B, LOW);
-  digitalWrite(LED_PIN, HIGH);
+void turnLeft(int speed) {
+  // Left side reverse, Right side forward
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  analogWrite(ENA, speed);
+  analogWrite(ENB, speed);
 }
 
-void turnRight() {
-  digitalWrite(MOTOR_LEFT_F, HIGH);
-  digitalWrite(MOTOR_LEFT_B, LOW);
-  digitalWrite(MOTOR_RIGHT_F, LOW);
-  digitalWrite(MOTOR_RIGHT_B, HIGH);
-  digitalWrite(LED_PIN, HIGH);
+void turnRight(int speed) {
+  // Left side forward, Right side reverse
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENA, speed);
+  analogWrite(ENB, speed);
 }
 
 void stopMotors() {
-  digitalWrite(MOTOR_LEFT_F, LOW);
-  digitalWrite(MOTOR_LEFT_B, LOW);
-  digitalWrite(MOTOR_RIGHT_F, LOW);
-  digitalWrite(MOTOR_RIGHT_B, LOW);
-  digitalWrite(LED_PIN, LOW);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
 }
